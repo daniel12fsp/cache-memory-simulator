@@ -6,17 +6,29 @@ file_name = "input_submarine_mips/submarines.s"
 
 class Programa():
 	instrucoes = []
+	dados = {} 
 
 	def __init__(self, file_name):
 		self.interpretador()
 	
 	def interpretador(self):
 		file_input = open(file_name).read()
-		code = re.sub("(#.*?\n)","", file_input)
+		code = re.sub("(#.*?\n)","\n", file_input)
 		code = re.sub("\s{2,}","\n", code)
+		code = re.sub("\t"," ", code)
 		for line in code.splitlines():
 			if(not re.search(":",line) and line):
 				self.instrucoes += [Instrucao(line)]
+			if(re.search("(\w+):.*?\.", line)):
+				name = line.split()[0]
+				if(not re.search("\"",line)):
+					value = line.split()[2:]
+				else:
+					value = " ".join(line.split()[2:])
+				self.dados[name] = value
+
+				
+
 
 
 	
@@ -50,8 +62,15 @@ class Instrucao():
 		return str((self._type, self.line))+"\n"	
 
 	
+class Dado():
+	pass
 
 	
+class Memoria():
+	pass	
+
 a = Programa(file_name)
 
-print(a.instrucoes)
+print(a.dados)
+
+
