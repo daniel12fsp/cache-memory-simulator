@@ -104,7 +104,7 @@ def main():
 	cacheL2 = Cache(TAMANHO_CACHE_L2, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
 
 	cacheL1.adicionarNivelSuperior = cacheL2
-	cacheL2._adicionarBlocoCache = memoria
+	cacheL2.adicionarNivelSuperior = memoria
 
 	#TODO: Loop para o teste manual
 
