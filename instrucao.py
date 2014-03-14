@@ -7,6 +7,7 @@ file_name = "input_submarine_mips/submarines.s"
 class Programa():
 	instrucoes = []
 	dados = {} 
+	rotulo = {}
 
 	def __init__(self, file_name):
 		self.interpretador()
@@ -19,20 +20,16 @@ class Programa():
 		for line in code.splitlines():
 			if(not re.search(":",line) and line):
 				self.instrucoes += [Instrucao(line)]
-			if(re.search("(\w+):.*?\.", line)):
+			elif(re.search("(\w+):.*?\.", line)):
 				name = line.split()[0]
 				if(not re.search("\"",line)):
 					value = line.split()[2:]
 				else:
 					value = " ".join(line.split()[2:])
 				self.dados[name] = value
-
+			else:
+				self.rotulo[line[:-1]] = len(self.instrucoes)
 				
-
-
-
-	
-
 class Instrucao():
 	aritmetica = ["add", "sub", "mult", "div", "mfhi"]
 	incondicional_salto = ["jal", "j", "jr", "baq"]
@@ -65,12 +62,14 @@ class Instrucao():
 class Dado():
 	pass
 
-	
+
+class Cache():
+	pass	
 class Memoria():
 	pass	
 
 a = Programa(file_name)
 
-print(a.dados)
+print(a.instrucoes[a.rotulo['print_new_line']])
 
 
