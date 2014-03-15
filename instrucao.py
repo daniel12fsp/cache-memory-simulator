@@ -8,6 +8,7 @@ class Programa():
 	instrucoes = []
 	dados = {} 
 	rotulo = {}
+	memoria_dados=[]
 
 	def __init__(self, file_name):
 		self.interpretador()
@@ -21,12 +22,32 @@ class Programa():
 			if(not re.search(":",line) and line):
 				self.instrucoes += [Instrucao(line)]
 			elif(re.search("(\w+):.*?\.", line)):
-				name = line.split()[0]
+				""" ship(nome variaverl): .word(tipo) 320 90 1 4(valores) """
+				split = line.split()
 				if(not re.search("\"",line)):
-					value = line.split()[2:]
+					value = list(map(int,re.split(" |:",line)[3:]))
+					"""
+						Caso esteja no formato submarines: .word -1:500
+						500 vetores inicializados com valor -1
+					"""
+					if(re.search("\d:\d",line)):
+						new_value = []
+						for i in range(0, value[1]):
+							new_value += [value[0]]
+						value = new_value
+							
 				else:
-					value = " ".join(line.split()[2:])
-				self.dados[name] = value
+					msg = " ".join(split[2:])[1:-1]
+					"""
+						Conversao das string normal para 4 letras por posicao(word) 
+					"""
+					msg = re.findall("(.{3,4})", msg)
+					value = msg
+
+
+				index = len(self.memoria_dados) 
+				self.memoria_dados += value
+				self.dados[split[0]] = index
 			else:
 				self.rotulo[line[:-1]] = len(self.instrucoes)
 				
@@ -70,6 +91,6 @@ class Memoria():
 
 a = Programa(file_name)
 
-print(a.instrucoes[a.rotulo['print_new_line']])
+print(a.memoria_dados)
 
 
