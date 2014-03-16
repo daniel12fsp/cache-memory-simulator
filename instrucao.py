@@ -1,19 +1,19 @@
 #!/bin/python
 import re
 
-file_name = "input_submarine_mips/submarines.s"
-
+#file_name = "input_submarine_mips/submarines.s"
 
 class Programa():
-	instrucoes = []
-	dados = {} 
-	rotulo = {}
-	memoria_dados=[]
-
 	def __init__(self, file_name):
-		self.interpretador()
-	
-	def interpretador(self):
+		self.instrucoes = []
+		self.programa = []
+		self.fim_programa = 0
+		self.dados = {} 
+		self.rotulo = {}
+		self.memoria_dados=[]
+		self.interpretador(file_name)
+
+	def interpretador(self, file_name):
 		file_input = open(file_name).read()
 		code = re.sub("(#.*?\n)","\n", file_input)
 		code = re.sub("\s{2,}","\n", code)
@@ -35,22 +35,33 @@ class Programa():
 						for i in range(0, value[1]):
 							new_value += [value[0]]
 						value = new_value
-							
+
 				else:
 					msg = " ".join(split[2:])[1:-1]
 					"""
 						Conversao das string normal para 4 letras por posicao(word) 
 					"""
-					msg = re.findall("(.{3,4})", msg)
+					msg = re.findall("(.{1,})", msg)
 					value = msg
-
 
 				index = len(self.memoria_dados) 
 				self.memoria_dados += value
 				self.dados[split[0]] = index
 			else:
 				self.rotulo[line[:-1]] = len(self.instrucoes)
-				
+		self._compilarPrograma()
+
+	def _compilarPrograma(self):
+		for instrucao in self.instrucoes:
+			string_linha = instrucao.line
+			string_linha = string_linha.replace(',',' ')
+			linha = string_linha.split()
+			self.programa.append(linha)
+		self.fim_programa = len(self.programa)
+		self.programa.extend(self.memoria_dados)
+		for dado in self.dados:
+			self.dados[dado] += self.fim_programa
+
 class Instrucao():
 	aritmetica = ["add", "sub", "mult", "div", "mfhi"]
 	incondicional_salto = ["jal", "j", "jr", "baq"]
@@ -77,20 +88,12 @@ class Instrucao():
 			self._type = "Syscam - Desconsidere"
 
 	def __repr__(self):
-		return str((self._type, self.line))+"\n"	
+		return str((self._type, self.line))+"\n"
 
-	
-class Dado():
-	pass
+#a = Programa(file_name)
 
-
-class Cache():
-	pass	
-class Memoria():
-	pass	
-
-a = Programa(file_name)
-
-print(a.memoria_dados)
+#print(a.programa)
+#print(a.memoria_dados)
+#print(a.dados)
 
 

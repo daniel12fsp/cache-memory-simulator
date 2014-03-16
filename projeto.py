@@ -1,5 +1,7 @@
 # coding: utf-8
 
+from instrucao import Programa
+
 #Memória
 
 # Configurações
@@ -8,7 +10,7 @@ TAMANHO_CACHE_L1 = 8 # Posições
 TAMANHO_CACHE_L2 = 32
 MAPEAMENTO_DIRETO = True
 GRAU_ASSOCIATIVIDADE = 1
-PALAVRAS_POR_BLOCO = 1
+PALAVRAS_POR_BLOCO = 4
 
 # Resultados
 hitRate = 0
@@ -27,11 +29,19 @@ REGISTRADORES = ['$zero',
 	'$fp',
 	'$ra']
 
+arquivo = 'teste.asm'
+
 class Memoria:
 	def __init__(self):
 		self.memoria = []
+	
+	def imprimirMemoria(self):
+		print('Memória\nEnd*.:\tValor:')
+		for end in range(len(self.memoria)):
+			print('%s\t%s' % (end, self.memoria[end]))
+		print('*Endereço virtual. (endereço_real/4)\n')
 
-	def abrirPrograma(self, programa):
+	def _abrirPrograma(self, programa):
 		'''Recebe um programa e cria um espaço virtual para armazenar as linhas.
 		O tamanho da memória depende do tamanha do programa'''
 		self.memoria = programa
@@ -40,10 +50,11 @@ class Memoria:
 
 	def _lerConteudo(self, endereco, tamanhoBloco):
 		'''Retornar um bloco contendo a instrução ou dado em endereco.'''
+		global missRate
 		missRate += 1 # Adiciona um MISS
-		ENDERECO_BLOCO = (endereco/self.tamanhoBloco) * self.tamanhoBloco
+		ENDERECO_BLOCO = int(endereco/tamanhoBloco) * tamanhoBloco
 		bloco = []
-		for i in range(self.tamanhoBloco):
+		for i in range(tamanhoBloco):
 			try:
 				bloco.append(self.memoria[ENDERECO_BLOCO + i])
 			except:
@@ -67,20 +78,27 @@ class Cache:
 		'''Adiciona uma memória de nível superior à cache.'''
 		self.nivelSuperior = cache
 
+	def imprimirMemoria(self):
+		self.nivelSuperior.imprimirMemoria()
+
 	def _buscarBlocoCache(self, endereco):
 		'''Busca e retorna o bloco de dados que contem endereco.'''
-		ENDERECO_VALIDO = endereco/self.tamanhoBloco
-		CONJUNTOS = self.tamanho/self.associatividade
+		ENDERECO_VALIDO = int(endereco/self.tamanhoBloco)
+		CONJUNTOS = int(self.tamanho/self.associatividade)
 
 		INDICE = ENDERECO_VALIDO % CONJUNTOS
-		TAG = ENDERECO_VALIDO / CONJUNTOS
+		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
 
 		if(self.cache[INDICE]):
-			for dado in cache[INDICE]:
+			for dado in self.cache[INDICE]:
 				if dado[0] == TAG:
+					global hitRate
 					hitRate += 1 # Está na cache, Adiciona um HIT
 					return dado[1]
-		return self._buscarNivelSuperior() # Não está nesse nível, verifica em nível superior
+		return self._buscarNivelSuperior(endereco) # Não está nesse nível, verifica em nível superior
+	
+	def _abrirPrograma(self, programa):
+		self.nivelSuperior._abrirPrograma(programa)
 
 	def ler(self, endereco):
 		'''Interface principal. Retorna o dado do endereço de memória.'''
@@ -100,14 +118,14 @@ class Cache:
 
 	def _adicionarBlocoCache(self, bloco, endereco):
 		'''Adiciona um bloco de dados nesse nível de cache.'''
-		ENDERECO_VALIDO = endereco/self.tamanhoBloco
-		CONJUNTOS = self.tamanho/self.associatividade
+		ENDERECO_VALIDO = int(endereco/self.tamanhoBloco)
+		CONJUNTOS = int(self.tamanho/self.associatividade)
 
 		INDICE = ENDERECO_VALIDO % CONJUNTOS
-		TAG = ENDERECO_VALIDO / CONJUNTOS
+		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
 
 		if (MAPEAMENTO_DIRETO): # Apenas mapeamento direto
-			self.cache[INDICE] = [(tag, bloco)]
+			self.cache[INDICE] = [(TAG, bloco)]
 		#TODO: Implementar as outras adições e as políticas de substituição de blocos
 
 class Processador:
@@ -119,6 +137,7 @@ class Processador:
 		self.instrucoes = {
 			'add': self._add,
 			'addi': self._addi,
+			'move': self._move,
 			'sub': self._sub,
 			'subi': self._subi,
 			'mul': self._mul,
@@ -132,7 +151,8 @@ class Processador:
 			'bne': self._bne,
 			'lw': self._lw,
 			'sw': self._sw,
-			'la': self._la}
+			'la': self._la,
+			'syscall': self._syscall}
 
 		for reg in REGISTRADORES:
 			self.registradores[reg] = 0
@@ -143,17 +163,35 @@ class Processador:
 
 	def imprimirRegistradores(self):
 		'''Imprime os registradores e seus valores.'''
-		print('Reg.:\tValor:')
+		print('Registradores\nReg.:\tValor:')
 		for reg in REGISTRADORES:
 			print('%s\t%s' % (reg, self.registradores[reg]))
+		print('\n')
+
+	def imprimirMemoria(self):
+		'''Imprime os valores em memória.'''
+		self.memoria.imprimirMemoria()
+
+	def _abrirPrograma(self, programa):
+		self.memoria._abrirPrograma(programa)
+
+	def _ler(self, endereco):
+		return self.memoria.ler(endereco)
 
 	def executar(self, programa):
 		'''Executa um programa.'''
-		#TODO Configurar pilha, frame, PC, IR
+		# Configurar pilha, frame, PC, IR
+		program_compilado = programa.programa
+		fim_programa = programa.fim_programa * 4
+		tam_pilha = 32 # Escolhi 32 apenas para termos um espaço razoável em pilha
+		program_compilado.extend([None]*tam_pilha)
+		end_pilha = (len(program_compilado) - 1) * 4
+		self.registradores['$sp'] = end_pilha
+		self._abrirPrograma(program_compilado)
 		self.ativo = True
-		while (self.ativo):
+		while (self.ativo and self.pc != fim_programa):
 			try:
-				instrucao = programa[int(self.pc/4)] # ('com', reg1, reg2, reg3) ('com', imediat)
+				instrucao = self._ler(int(self.pc/4))
 				self.pc += 4
 				self.instrucoes[instrucao[0]](instrucao[1:])
 			except IndexError:
@@ -168,21 +206,24 @@ class Processador:
 			self.registradores[parametros[2]])
 
 	def _addi(self, parametros):
-		self.registradores[parametros[0]] = self.registradores[parametros[1]] + parametros[2]
+		self.registradores[parametros[0]] = self.registradores[parametros[1]] + int(parametros[2])
+
+	def _move(self, parametros):
+		self.registradores[parametros[0]] = self.registradores[parametros[1]]
 
 	def _sub(self, parametros):
 		self.registradores[parametros[0]] = (self.registradores[parametros[1]] -
 			self.registradores[parametros[2]])
 
 	def _subi(self, parametros):
-		self.registradores[parametros[0]] = self.registradores[parametros[1]] - parametros[2]
+		self.registradores[parametros[0]] = self.registradores[parametros[1]] - int(parametros[2])
 
 	def _mul(self, parametros):
 		self.registradores[parametros[0]] = (self.registradores[parametros[1]] *
 			self.registradores[parametros[2]])
 
 	def _div(self, parametros):
-		self.registradores[parametros[0]] = (self.registradores[parametros[1]] /
+		self.registradores[parametros[0]] = int(self.registradores[parametros[1]] /
 			self.registradores[parametros[2]])
 
 	# Logicas
@@ -193,18 +234,18 @@ class Processador:
 			self.registradores[parametros[0]] = 0
 
 	def _slti(self, parametros):
-		if(self.registradores[parametros[1]] < parametros[2]):
+		if(self.registradores[parametros[1]] < int(parametros[2])):
 			self.registradores[parametros[0]] = 1
 		else:
 			self.registradores[parametros[0]] = 0
 
 	# Saltos
 	def _j(self, parametros):
-		self.pc = parametros[0]
+		self.pc = int(parametros[0])
 
 	def _jal(self, parametros):
 		self.registradores['$ra'] = self.pc
-		self.pc = parametros[0]
+		self.pc = int(parametros[0])
 
 	def _jr(self, parametros):
 		self.pc = self.registradores[parametros[0]]
@@ -212,7 +253,7 @@ class Processador:
 	# Desvios
 	def _beq(self, parametros):
 		if(self.registradores[parametros[0]] == parametros[1]):
-			self.pc = self.pc + parametros[2] - 4
+			self.pc = self.pc + int(parametros[2]) - 4
 
 	def _bne(self, parametros):
 		if(self.registradores[parametros[0]] != parametros[1]):
@@ -221,11 +262,13 @@ class Processador:
 	# Acesso a Memória
 	def _lw(self, parametros):
 		split = parametros[1].split('(',1)
-		reg = split.split(')',1)
+		reg = split[1].split(')',1)[0]
 		constante = int(split[0])
+		if(not constante):
+			constante = 0
 
 		endereco = self.registradores[reg] + constante
-		self.registradores[parametros[0]] = self.memoria.ler(endereco)
+		self.registradores[parametros[0]] = self._ler(int(endereco/4))
 
 	def _sw(self, parametros):
 		pass
@@ -233,21 +276,33 @@ class Processador:
 	def _la(self, parametros):
 		pass
 
+	# Syscall
+	def _syscall(self, object):
+		pass
+
+
 def main():
 	memoria = Memoria()
 	cacheL1 = Cache(TAMANHO_CACHE_L1, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
 	cacheL2 = Cache(TAMANHO_CACHE_L2, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
 
-	cacheL1.adicionarNivelSuperior = cacheL2
-	cacheL2.adicionarNivelSuperior = memoria
+	cacheL1.adicionarNivelSuperior(cacheL2)
+	cacheL2.adicionarNivelSuperior(memoria)
 
 	processador = Processador()
-	programa = []
-	programa.append(['addi', '$s0', '$zero', 3])
-	programa.append(['addi', '$s1', '$zero', 8])
-	programa.append(['add', '$s2', '$s0', '$s1'])
+	processador.adicionarMemoria(cacheL1)
+
+	programa = Programa('teste.asm')
+
 	processador.executar(programa)
 	processador.imprimirRegistradores()
+	processador.imprimirMemoria()
+	
+	print('Configuração da Arquitetura\nTamanho da Cache L1 = %d (posições)\nTamanho da Cache L2 = %d (posições)\nMapeamento direto = %r\nGrau de Associatividade = %d\nPalavras por bloco = %d\n' %
+		(TAMANHO_CACHE_L1, TAMANHO_CACHE_L2, MAPEAMENTO_DIRETO, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO))
+	global hitRate, missRate
+	total = (hitRate + missRate)
+	print('Resultados\nHit Rate: (%d) %.1f%% \tMiss Rate: (%d) %.1f%%' % (hitRate, hitRate/total*100, missRate, missRate/total*100))
 	#TODO: Loop para o teste manual
 
 if __name__ == "__main__":
