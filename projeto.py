@@ -247,23 +247,23 @@ class Processador:
 
 	# Saltos
 	def _j(self, parametros):
-		self.pc = int(parametros[0])
+		self.pc = self.programa.rotulo[parametros[0]] * 4
 
 	def _jal(self, parametros):
 		self.registradores['$ra'] = self.pc
-		self.pc = int(parametros[0])
+		self.pc = self.programa.rotulo[parametros[0]] * 4
 
 	def _jr(self, parametros):
 		self.pc = self.registradores[parametros[0]]
 
 	# Desvios
 	def _beq(self, parametros):
-		if(self.registradores[parametros[0]] == parametros[1]):
-			self.pc = self.programa.rotulo[parametros[1] + ':'] * 4
+		if(self.registradores[parametros[0]] == self.registradores[parametros[1]]):
+			self.pc = self.programa.rotulo[parametros[2]] * 4
 
 	def _bne(self, parametros):
-		if(self.registradores[parametros[0]] != parametros[1]):
-			self.pc = self.pc + parametros[2] - 4
+		if(self.registradores[parametros[0]] != self.registradores[parametros[1]]):
+			self.pc = self.programa.rotulo[parametros[2]] * 4
 
 	# Acesso a Memória
 	def _lw(self, parametros):
