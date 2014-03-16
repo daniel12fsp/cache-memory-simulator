@@ -133,6 +133,7 @@ class Processador:
 		self.ativo = False
 		self.pc = 0
 		self.memoria = None
+		self.programa = None
 		self.registradores = {}
 		self.instrucoes = {
 			'add': self._add,
@@ -161,6 +162,10 @@ class Processador:
 		'''Adiciona a memória cache de no primeiro nível.'''
 		self.memoria = memoria
 
+	def adicionarPrograma(self, programa):
+		'''Adiciona um programa a ser executado.'''
+		self.programa = programa
+
 	def imprimirRegistradores(self):
 		'''Imprime os registradores e seus valores.'''
 		print('Registradores\nReg.:\tValor:')
@@ -178,11 +183,11 @@ class Processador:
 	def _ler(self, endereco):
 		return self.memoria.ler(endereco)
 
-	def executar(self, programa):
+	def executar(self):
 		'''Executa um programa.'''
 		# Configurar pilha, frame, PC, IR
-		program_compilado = programa.programa
-		fim_programa = programa.fim_programa * 4
+		program_compilado = self.programa.programa
+		fim_programa = self.programa.fim_programa * 4
 		tam_pilha = 32 # Escolhi 32 apenas para termos um espaço razoável em pilha
 		program_compilado.extend([None]*tam_pilha)
 		end_pilha = (len(program_compilado) - 1) * 4
@@ -196,7 +201,8 @@ class Processador:
 				self.instrucoes[instrucao[0]](instrucao[1:])
 			except IndexError:
 				self.ativo = False
-				print("ERRO: Segmentation fault. Impossível executar instrução na posição de memoria %s." % ((self.pc)-1))
+				print("ERRO: Segmentation fault. Impossível executar instrução na posição de memoria %s." % (int(self.pc/4)))
+				raise
 
 	# Implementação das Instruções
 
@@ -253,7 +259,7 @@ class Processador:
 	# Desvios
 	def _beq(self, parametros):
 		if(self.registradores[parametros[0]] == parametros[1]):
-			self.pc = self.pc + int(parametros[2]) - 4
+			self.pc = self.programa.rotulo[parametros[1] + ':'] * 4
 
 	def _bne(self, parametros):
 		if(self.registradores[parametros[0]] != parametros[1]):
@@ -274,12 +280,21 @@ class Processador:
 		pass
 
 	def _la(self, parametros):
-		pass
+		self.registradores[parametros[0]] = self.programa.dados[parametros[1] + ':'] * 4
 
 	# Syscall
 	def _syscall(self, object):
-		pass
-
+		codigo = self.registradores['$v0']
+		if codigo == 1: # imprime um inteiro, $a0 = valor
+			print(self.registradores['$a0'])
+		elif codigo == 4: # imprime uma string, $a0 = endereço da string
+			endereco = int(self.registradores['$a0']/4)
+			print(self.programa.programa[endereco])
+		elif codigo == 5: # lê um inteiro, $v0 = valor lido
+			num = int(input())
+			self.registradores['$v0'] = num
+		elif codigo == 10: # Fim do programa
+			self.ativo = False
 
 def main():
 	memoria = Memoria()
@@ -294,7 +309,8 @@ def main():
 
 	programa = Programa('teste.asm')
 
-	processador.executar(programa)
+	processador.adicionarPrograma(programa)
+	processador.executar()
 	processador.imprimirRegistradores()
 	processador.imprimirMemoria()
 	

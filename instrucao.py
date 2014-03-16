@@ -19,7 +19,7 @@ class Programa():
 		code = re.sub("\s{2,}","\n", code)
 		code = re.sub("\t"," ", code)
 		for line in code.splitlines():
-			if(not re.search(":",line) and line):
+			if(not re.search(":",line) and not re.search(".data",line) and not re.search(".text",line) and line):
 				self.instrucoes += [Instrucao(line)]
 			elif(re.search("(\w+):.*?\.", line)):
 				""" ship(nome variaverl): .word(tipo) 320 90 1 4(valores) """
