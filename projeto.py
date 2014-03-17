@@ -1,16 +1,17 @@
 # coding: utf-8
 
 from instrucao import Programa
+import random
+from datetime import datetime
 
 #Memória
 
 # Configurações
 
 TAMANHO_CACHE_L1 = 8 # Posições
-TAMANHO_CACHE_L2 = 32
-MAPEAMENTO_DIRETO = True
-GRAU_ASSOCIATIVIDADE = 1
-PALAVRAS_POR_BLOCO = 4
+GRAU_ASSOCIATIVIDADE = 2
+MODO_SUBSTITUICAO = 0 # 0 = Aleatório; 1 = LRU; 2 = FIFO; 3 = LFU
+PALAVRAS_POR_BLOCO = 2
 
 # Resultados
 hitRate = 0
@@ -58,17 +59,17 @@ class Memoria:
 			try:
 				bloco.append(self.memoria[ENDERECO_BLOCO + i])
 			except:
-				bloco.append(None)
+				bloco.append([])
 		return bloco
 
 class Cache:
 	'''Formato da cache: [conj_1, conj_2, ..., conj_k] k = TAMANHO_CACHE/GRAU_ASSOCIATIVIDADE
 	Formato dos conjuntos: [dado_1, dado_2, ..., dado_n], n = GRAU_ASSOCIATIVIDADE
-	Formato dos dados: (tag, bloco de dados)
+	Formato dos dados: (Var_Controle, tag, bloco de dados) Var_Controle é usada para o controle do método de substituição de bloco
 	Formato dos blocos de dados: [palavra_1, palavra_2, ..., palavra_i], i = PALAVRAS_POR_BLOCO'''
 	def __init__(self, tamanho, associatividade, tamanhoBloco):
 		self.cache = []
-		self.cache.extend([None]*tamanho)
+		self.cache.extend([[()]*associatividade]*int(tamanho/associatividade))
 		self.tamanho = tamanho
 		self.associatividade = associatividade
 		self.tamanhoBloco = tamanhoBloco
@@ -81,6 +82,12 @@ class Cache:
 	def imprimirMemoria(self):
 		self.nivelSuperior.imprimirMemoria()
 
+	def imprimirCache(self):
+		print('Cache\nEnd*.:\tValor do conjunto:')
+		for end in range(len(self.cache)):
+			print('%s\t%s' % (end, self.cache[end]))
+		print('\n')
+
 	def _buscarBlocoCache(self, endereco):
 		'''Busca e retorna o bloco de dados que contem endereco.'''
 		ENDERECO_VALIDO = int(endereco/self.tamanhoBloco)
@@ -89,12 +96,12 @@ class Cache:
 		INDICE = ENDERECO_VALIDO % CONJUNTOS
 		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
 
-		if(self.cache[INDICE]):
-			for dado in self.cache[INDICE]:
-				if dado[0] == TAG:
-					global hitRate
-					hitRate += 1 # Está na cache, Adiciona um HIT
-					return dado[1]
+		#if(self.cache[INDICE]):
+		for dado in self.cache[INDICE]:
+			if (dado and dado[1] == TAG):
+				global hitRate
+				hitRate += 1 # Está na cache, Adiciona um HIT
+				return dado[2]
 		return self._buscarNivelSuperior(endereco) # Não está nesse nível, verifica em nível superior
 	
 	def _abrirPrograma(self, programa):
@@ -123,10 +130,49 @@ class Cache:
 
 		INDICE = ENDERECO_VALIDO % CONJUNTOS
 		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
+		
+		CONTROLE = None
+		if(MODO_SUBSTITUICAO == 1 or MODO_SUBSTITUICAO == 2):
+			CONTROLE = datetime.now()
+		if(MODO_SUBSTITUICAO == 3):
+			CONTROLE = 1
 
-		if (MAPEAMENTO_DIRETO): # Apenas mapeamento direto
-			self.cache[INDICE] = [(TAG, bloco)]
+		if (GRAU_ASSOCIATIVIDADE == 1): # Apenas mapeamento direto
+			self.cache[INDICE] = [(CONTROLE, TAG, bloco)]
+		else:
+			conjunto = self.cache[INDICE]
+			pos = 0
+			
+			for pos in range(len(conjunto)):
+				if (not conjunto[pos]):
+					print('Antes:',conjunto[pos]) #TODO REMOVER
+					print('self.cache[INDICE][pos] =',self.cache[INDICE][pos]) #TODO REMOVER
+					print('Indice: %d\tPos.: %d' %(INDICE, pos)) #TODO REMOVER
+					self.imprimirCache() #TODO REMOVER
+					conjunto[pos] = (CONTROLE, TAG, bloco)
+					print('Depois') #TODO REMOVER
+					self.imprimirCache() #TODO REMOVER
+					bloco = None
+					break
+
+			if(bloco):
+				if(MODO_SUBSTITUICAO == 0):
+					pos = random.randrange(len(conjunto))
+				if(MODO_SUBSTITUICAO == 1 or MODO_SUBSTITUICAO == 2 or MODO_SUBSTITUICAO == 3):
+					temp_controle = conjunto[0][0]
+					for pos_temp in range(1, len(conjunto)):
+						if (conjunto[pos_temp][0] < temp_controle):
+							temp_controle = conjunto[pos_temp][0]
+							pos = pos_temp
+				self.cache[INDICE][pos] = (CONTROLE, TAG, bloco)
 		#TODO: Implementar as outras adições e as políticas de substituição de blocos
+		#	Verificar se possui campo vazio:
+		#		Adiciona no campo vazio
+		#	Senão:
+		#		Aleatório:
+		#		LRU:
+		#		FIFO:
+		#		LFU:
 
 class Processador:
 	def __init__(self):
@@ -194,11 +240,13 @@ class Processador:
 		self.registradores['$sp'] = end_pilha
 		self._abrirPrograma(program_compilado)
 		self.ativo = True
-		while (self.ativo and self.pc != fim_programa):
+		i = 0 # TODO REMOVER
+		while (i < 200 and self.ativo and self.pc != fim_programa):
 			try:
 				instrucao = self._ler(int(self.pc/4))
 				self.pc += 4
 				self.instrucoes[instrucao[0]](instrucao[1:])
+				i += 1
 			except IndexError:
 				self.ativo = False
 				print("ERRO: Segmentation fault. Impossível executar instrução na posição de memoria %s." % (int(self.pc/4)))
@@ -229,8 +277,11 @@ class Processador:
 			self.registradores[parametros[2]])
 
 	def _div(self, parametros):
-		self.registradores[parametros[0]] = int(self.registradores[parametros[1]] /
-			self.registradores[parametros[2]])
+		try:
+			self.registradores[parametros[0]] = int(self.registradores[parametros[1]] /
+				self.registradores[parametros[2]])
+		except:
+			pass
 
 	# Logicas
 	def _slt(self, parametros):
@@ -299,10 +350,8 @@ class Processador:
 def main():
 	memoria = Memoria()
 	cacheL1 = Cache(TAMANHO_CACHE_L1, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
-	cacheL2 = Cache(TAMANHO_CACHE_L2, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
 
-	cacheL1.adicionarNivelSuperior(cacheL2)
-	cacheL2.adicionarNivelSuperior(memoria)
+	cacheL1.adicionarNivelSuperior(memoria)
 
 	processador = Processador()
 	processador.adicionarMemoria(cacheL1)
@@ -311,11 +360,12 @@ def main():
 
 	processador.adicionarPrograma(programa)
 	processador.executar()
-	processador.imprimirRegistradores()
-	processador.imprimirMemoria()
+	#processador.imprimirRegistradores()
+	#processador.imprimirMemoria()
 	
-	print('Configuração da Arquitetura\nTamanho da Cache L1 = %d (posições)\nTamanho da Cache L2 = %d (posições)\nMapeamento direto = %r\nGrau de Associatividade = %d\nPalavras por bloco = %d\n' %
-		(TAMANHO_CACHE_L1, TAMANHO_CACHE_L2, MAPEAMENTO_DIRETO, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO))
+	cacheL1.imprimirCache()
+	print('Configuração da Arquitetura\nTamanho da Cache = %d (posições)\nGrau de Associatividade = %d\nPalavras por bloco = %d\n' %
+		(TAMANHO_CACHE_L1, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO))
 	global hitRate, missRate
 	total = (hitRate + missRate)
 	print('Resultados\nHit Rate: (%d) %.1f%% \tMiss Rate: (%d) %.1f%%' % (hitRate, hitRate/total*100, missRate, missRate/total*100))
