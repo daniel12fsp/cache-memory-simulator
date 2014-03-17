@@ -9,9 +9,9 @@ from datetime import datetime
 # Configurações
 
 TAMANHO_CACHE_L1 = 8 # Posições
-GRAU_ASSOCIATIVIDADE = 2
-MODO_SUBSTITUICAO = 0 # 0 = Aleatório; 1 = LRU; 2 = FIFO; 3 = LFU
-PALAVRAS_POR_BLOCO = 2
+GRAU_ASSOCIATIVIDADE = 1
+MODO_SUBSTITUICAO = 3 # 0 = Aleatório; 1 = LRU; 2 = FIFO; 3 = LFU
+PALAVRAS_POR_BLOCO = 4
 
 # Resultados
 hitRate = 0
@@ -46,8 +46,6 @@ class Memoria:
 		'''Recebe um programa e cria um espaço virtual para armazenar as linhas.
 		O tamanho da memória depende do tamanha do programa'''
 		self.memoria = programa
-#		for posicao in programa:
-#			self.memoria.append(posicao)
 
 	def _lerConteudo(self, endereco, tamanhoBloco):
 		'''Retornar um bloco contendo a instrução ou dado em endereco.'''
@@ -65,7 +63,7 @@ class Memoria:
 class Cache:
 	'''Formato da cache: [conj_1, conj_2, ..., conj_k] k = TAMANHO_CACHE/GRAU_ASSOCIATIVIDADE
 	Formato dos conjuntos: [dado_1, dado_2, ..., dado_n], n = GRAU_ASSOCIATIVIDADE
-	Formato dos dados: (Var_Controle, tag, bloco de dados) Var_Controle é usada para o controle do método de substituição de bloco
+	Formato dos dados: [Var_Controle, tag, bloco de dados] Var_Controle é usada para o controle do método de substituição de bloco
 	Formato dos blocos de dados: [palavra_1, palavra_2, ..., palavra_i], i = PALAVRAS_POR_BLOCO'''
 	def __init__(self, tamanho, associatividade, tamanhoBloco):
 		self.cache = []
@@ -83,9 +81,11 @@ class Cache:
 		self.nivelSuperior.imprimirMemoria()
 
 	def imprimirCache(self):
-		print('Cache\nEnd*.:\tValor do conjunto:')
+		print('Cache\nEnd. Conjunto.:\tValor do conjunto:')
 		for end in range(len(self.cache)):
-			print('%s\t%s' % (end, self.cache[end]))
+			print('%s' % end)
+			for palavra in self.cache[end]:
+				print('\tDado:', palavra)
 		print('\n')
 
 	def _buscarBlocoCache(self, endereco):
@@ -96,14 +96,17 @@ class Cache:
 		INDICE = ENDERECO_VALIDO % CONJUNTOS
 		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
 
-		#if(self.cache[INDICE]):
 		for dado in self.cache[INDICE]:
 			if (dado and dado[1] == TAG):
 				global hitRate
 				hitRate += 1 # Está na cache, Adiciona um HIT
+				if(MODO_SUBSTITUICAO == 1):
+					dado[0] = datetime.now()
+				if(MODO_SUBSTITUICAO == 3):
+					dado[0] += 1
 				return dado[2]
 		return self._buscarNivelSuperior(endereco) # Não está nesse nível, verifica em nível superior
-	
+
 	def _abrirPrograma(self, programa):
 		self.nivelSuperior._abrirPrograma(programa)
 
@@ -130,28 +133,23 @@ class Cache:
 
 		INDICE = ENDERECO_VALIDO % CONJUNTOS
 		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
-		
+
 		CONTROLE = None
 		if(MODO_SUBSTITUICAO == 1 or MODO_SUBSTITUICAO == 2):
 			CONTROLE = datetime.now()
 		if(MODO_SUBSTITUICAO == 3):
 			CONTROLE = 1
 
+		dado = [CONTROLE, TAG, bloco]
 		if (GRAU_ASSOCIATIVIDADE == 1): # Apenas mapeamento direto
-			self.cache[INDICE] = [(CONTROLE, TAG, bloco)]
+			self.cache[INDICE] = [dado]
 		else:
-			conjunto = self.cache[INDICE]
+			conjunto = list(self.cache[INDICE])
 			pos = 0
 			
 			for pos in range(len(conjunto)):
 				if (not conjunto[pos]):
-					print('Antes:',conjunto[pos]) #TODO REMOVER
-					print('self.cache[INDICE][pos] =',self.cache[INDICE][pos]) #TODO REMOVER
-					print('Indice: %d\tPos.: %d' %(INDICE, pos)) #TODO REMOVER
-					self.imprimirCache() #TODO REMOVER
-					conjunto[pos] = (CONTROLE, TAG, bloco)
-					print('Depois') #TODO REMOVER
-					self.imprimirCache() #TODO REMOVER
+					conjunto[pos] = dado
 					bloco = None
 					break
 
@@ -164,15 +162,8 @@ class Cache:
 						if (conjunto[pos_temp][0] < temp_controle):
 							temp_controle = conjunto[pos_temp][0]
 							pos = pos_temp
-				self.cache[INDICE][pos] = (CONTROLE, TAG, bloco)
-		#TODO: Implementar as outras adições e as políticas de substituição de blocos
-		#	Verificar se possui campo vazio:
-		#		Adiciona no campo vazio
-		#	Senão:
-		#		Aleatório:
-		#		LRU:
-		#		FIFO:
-		#		LFU:
+				conjunto[pos] = dado
+			self.cache[INDICE] = conjunto
 
 class Processador:
 	def __init__(self):
@@ -342,7 +333,10 @@ class Processador:
 			endereco = int(self.registradores['$a0']/4)
 			print(self.programa.programa[endereco])
 		elif codigo == 5: # lê um inteiro, $v0 = valor lido
-			num = int(input())
+			try:
+				num = int(input())
+			except ValueError:
+				num = 0
 			self.registradores['$v0'] = num
 		elif codigo == 10: # Fim do programa
 			self.ativo = False
@@ -360,16 +354,15 @@ def main():
 
 	processador.adicionarPrograma(programa)
 	processador.executar()
-	#processador.imprimirRegistradores()
-	#processador.imprimirMemoria()
-	
+	processador.imprimirRegistradores()
+	processador.imprimirMemoria()
+
 	cacheL1.imprimirCache()
 	print('Configuração da Arquitetura\nTamanho da Cache = %d (posições)\nGrau de Associatividade = %d\nPalavras por bloco = %d\n' %
 		(TAMANHO_CACHE_L1, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO))
 	global hitRate, missRate
 	total = (hitRate + missRate)
 	print('Resultados\nHit Rate: (%d) %.1f%% \tMiss Rate: (%d) %.1f%%' % (hitRate, hitRate/total*100, missRate, missRate/total*100))
-	#TODO: Loop para o teste manual
 
 if __name__ == "__main__":
 	main()
