@@ -60,6 +60,9 @@ class Memoria:
 				bloco.append([])
 		return bloco
 
+	def _escreverConteudo(self, endereco, valor):
+		self.memoria[endereco] = valor
+
 class Cache:
 	'''Formato da cache: [conj_1, conj_2, ..., conj_k] k = TAMANHO_CACHE/GRAU_ASSOCIATIVIDADE
 	Formato dos conjuntos: [dado_1, dado_2, ..., dado_n], n = GRAU_ASSOCIATIVIDADE
@@ -114,6 +117,12 @@ class Cache:
 		'''Interface principal. Retorna o dado do endereço de memória.'''
 		bloco = self._buscarBlocoCache(endereco)
 		return bloco[endereco % self.tamanhoBloco]
+
+	def escrever(self, endereco, valor):
+		'''Interface de escrita.'''
+		bloco = self._buscarBlocoCache(endereco)
+		bloco[endereco % self.tamanhoBloco] = valor
+		self.nivelSuperior._escreverConteudo(endereco, valor)
 
 	def _buscarNivelSuperior(self, endereco):
 		'''Busca e retorna o bloco que contem endereco no nível superior depois de adiciona este bloco neste nível.'''
@@ -220,6 +229,9 @@ class Processador:
 	def _ler(self, endereco):
 		return self.memoria.ler(endereco)
 
+	def _escrever(self, endereco, valor):
+		self.memoria.escrever(endereco, valor)
+
 	def executar(self):
 		'''Executa um programa.'''
 		# Configurar pilha, frame, PC, IR
@@ -319,7 +331,14 @@ class Processador:
 		self.registradores[parametros[0]] = self._ler(int(endereco/4))
 
 	def _sw(self, parametros):
-		pass
+		split = parametros[1].split('(',1)
+		reg = split[1].split(')',1)[0]
+		constante = int(split[0])
+		if(not constante):
+			constante = 0
+		endereco = int((self.registradores[reg] + constante)/4)
+		valor = self.registradores[parametros[0]]
+		self._escrever(endereco, valor)
 
 	def _la(self, parametros):
 		self.registradores[parametros[0]] = self.programa.dados[parametros[1] + ':'] * 4
