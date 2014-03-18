@@ -30,7 +30,7 @@ REGISTRADORES = ['$zero',
 	'$fp',
 	'$ra']
 
-arquivo = 'testeSwLw.asm'
+arquivo = 'InsertionSortAssembly.asm'
 
 class Memoria:
 	def __init__(self):
