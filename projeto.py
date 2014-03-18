@@ -8,10 +8,10 @@ from datetime import datetime
 
 # Configurações
 
-TAMANHO_CACHE_L1 = 8 # Posições
+TAMANHO_CACHE = 8 # Posições
 GRAU_ASSOCIATIVIDADE = 1
-MODO_SUBSTITUICAO = 3 # 0 = Aleatório; 1 = LRU; 2 = FIFO; 3 = LFU
-PALAVRAS_POR_BLOCO = 4
+MODO_SUBSTITUICAO = 0 # 0 = Aleatório; 1 = LRU; 2 = FIFO; 3 = LFU
+PALAVRAS_POR_BLOCO = 2
 
 # Resultados
 hitRate = 0
@@ -30,7 +30,7 @@ REGISTRADORES = ['$zero',
 	'$fp',
 	'$ra']
 
-arquivo = 'teste.asm'
+arquivo = 'testeSwLw.asm'
 
 class Memoria:
 	def __init__(self):
@@ -48,14 +48,14 @@ class Memoria:
 		self.memoria = programa
 
 	def _lerConteudo(self, endereco, tamanhoBloco):
-		'''Retornar um bloco contendo a instrução ou dado em endereco.'''
+		'''Retornar um bloco contendo a instrução ou dado em endereço.'''
 		global missRate
 		missRate += 1 # Adiciona um MISS
-		ENDERECO_BLOCO = int(endereco/tamanhoBloco) * tamanhoBloco
+		endereco_bloco = int(endereco/tamanhoBloco) * tamanhoBloco
 		bloco = []
 		for i in range(tamanhoBloco):
 			try:
-				bloco.append(self.memoria[ENDERECO_BLOCO + i])
+				bloco.append(self.memoria[endereco_bloco + i])
 			except:
 				bloco.append([])
 		return bloco
@@ -93,19 +93,19 @@ class Cache:
 
 	def _buscarBlocoCache(self, endereco):
 		'''Busca e retorna o bloco de dados que contem endereco.'''
-		ENDERECO_VALIDO = int(endereco/self.tamanhoBloco)
-		CONJUNTOS = int(self.tamanho/self.associatividade)
+		endereco_valido = int(endereco/self.tamanhoBloco)
+		conjuntos = int(self.tamanho/self.associatividade)
 
-		INDICE = ENDERECO_VALIDO % CONJUNTOS
-		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
+		indice = endereco_valido % conjuntos
+		tag = int(endereco_valido / conjuntos)
 
-		for dado in self.cache[INDICE]:
-			if (dado and dado[1] == TAG):
+		for dado in self.cache[indice]:
+			if (dado and dado[1] == tag):
 				global hitRate
 				hitRate += 1 # Está na cache, Adiciona um HIT
-				if(MODO_SUBSTITUICAO == 1):
+				if(MODO_SUBSTITUICAO == 1):# Marca LRU (o menos recente utilizado)
 					dado[0] = datetime.now()
-				if(MODO_SUBSTITUICAO == 3):
+				if(MODO_SUBSTITUICAO == 3):# Marca LFU (o menos frequentemente utilizado)
 					dado[0] += 1
 				return dado[2]
 		return self._buscarNivelSuperior(endereco) # Não está nesse nível, verifica em nível superior
@@ -122,7 +122,7 @@ class Cache:
 		'''Interface de escrita.'''
 		bloco = self._buscarBlocoCache(endereco)
 		bloco[endereco % self.tamanhoBloco] = valor
-		self.nivelSuperior._escreverConteudo(endereco, valor)
+		self.nivelSuperior._escreverConteudo(endereco, valor) # Mantém a coerência de cache
 
 	def _buscarNivelSuperior(self, endereco):
 		'''Busca e retorna o bloco que contem endereco no nível superior depois de adiciona este bloco neste nível.'''
@@ -137,42 +137,42 @@ class Cache:
 
 	def _adicionarBlocoCache(self, bloco, endereco):
 		'''Adiciona um bloco de dados nesse nível de cache.'''
-		ENDERECO_VALIDO = int(endereco/self.tamanhoBloco)
-		CONJUNTOS = int(self.tamanho/self.associatividade)
+		endereco_valido = int(endereco/self.tamanhoBloco)
+		conjuntos = int(self.tamanho/self.associatividade)
 
-		INDICE = ENDERECO_VALIDO % CONJUNTOS
-		TAG = int(ENDERECO_VALIDO / CONJUNTOS)
+		indice = endereco_valido % conjuntos
+		tag = int(endereco_valido / conjuntos)
 
-		CONTROLE = None
+		controle = None
 		if(MODO_SUBSTITUICAO == 1 or MODO_SUBSTITUICAO == 2):
-			CONTROLE = datetime.now()
+			controle = datetime.now()
 		if(MODO_SUBSTITUICAO == 3):
-			CONTROLE = 1
+			controle = 1
 
-		dado = [CONTROLE, TAG, bloco]
-		if (GRAU_ASSOCIATIVIDADE == 1): # Apenas mapeamento direto
-			self.cache[INDICE] = [dado]
-		else:
-			conjunto = list(self.cache[INDICE])
+		dado = [controle, tag, bloco]
+		if (GRAU_ASSOCIATIVIDADE == 1): # Adiciona em mapeamento Direto
+			self.cache[indice] = [dado]
+		else: # Adiciona em mapeamento Associativo
+			conjunto = list(self.cache[indice])
 			pos = 0
 			
-			for pos in range(len(conjunto)):
+			for pos in range(len(conjunto)): # Adiciona em espaço vazio
 				if (not conjunto[pos]):
 					conjunto[pos] = dado
 					bloco = None
 					break
 
-			if(bloco):
-				if(MODO_SUBSTITUICAO == 0):
+			if(bloco): # Caso não exista espaços vazios, escolhe um bloco para substituir.
+				if(MODO_SUBSTITUICAO == 0): # Substituição Aleatória
 					pos = random.randrange(len(conjunto))
-				if(MODO_SUBSTITUICAO == 1 or MODO_SUBSTITUICAO == 2 or MODO_SUBSTITUICAO == 3):
+				if(MODO_SUBSTITUICAO == 1 or MODO_SUBSTITUICAO == 2 or MODO_SUBSTITUICAO == 3): # Substituição LRU, FIFO ou LFU
 					temp_controle = conjunto[0][0]
-					for pos_temp in range(1, len(conjunto)):
+					for pos_temp in range(1, len(conjunto)): # Percorre o conjunto para descobrir o bloco para substituir
 						if (conjunto[pos_temp][0] < temp_controle):
 							temp_controle = conjunto[pos_temp][0]
 							pos = pos_temp
 				conjunto[pos] = dado
-			self.cache[INDICE] = conjunto
+			self.cache[indice] = conjunto
 
 class Processador:
 	def __init__(self):
@@ -201,6 +201,7 @@ class Processador:
 			'la': self._la,
 			'syscall': self._syscall}
 
+		
 		for reg in REGISTRADORES:
 			self.registradores[reg] = 0
 
@@ -243,13 +244,11 @@ class Processador:
 		self.registradores['$sp'] = end_pilha
 		self._abrirPrograma(program_compilado)
 		self.ativo = True
-		i = 0 # TODO REMOVER
-		while (i < 200 and self.ativo and self.pc != fim_programa):
+		while (self.ativo and self.pc != fim_programa):
 			try:
 				instrucao = self._ler(int(self.pc/4))
 				self.pc += 4
 				self.instrucoes[instrucao[0]](instrucao[1:])
-				i += 1
 			except IndexError:
 				self.ativo = False
 				print("ERRO: Segmentation fault. Impossível executar instrução na posição de memoria %s." % (int(self.pc/4)))
@@ -323,8 +322,9 @@ class Processador:
 	def _lw(self, parametros):
 		split = parametros[1].split('(',1)
 		reg = split[1].split(')',1)[0]
-		constante = int(split[0])
-		if(not constante):
+		try:
+			constante = int(split[0])
+		except ValueError:
 			constante = 0
 
 		endereco = self.registradores[reg] + constante
@@ -333,8 +333,9 @@ class Processador:
 	def _sw(self, parametros):
 		split = parametros[1].split('(',1)
 		reg = split[1].split(')',1)[0]
-		constante = int(split[0])
-		if(not constante):
+		try:
+			constante = int(split[0])
+		except ValueError:
 			constante = 0
 		endereco = int((self.registradores[reg] + constante)/4)
 		valor = self.registradores[parametros[0]]
@@ -362,14 +363,14 @@ class Processador:
 
 def main():
 	memoria = Memoria()
-	cacheL1 = Cache(TAMANHO_CACHE_L1, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
+	cacheL1 = Cache(TAMANHO_CACHE, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO)
 
 	cacheL1.adicionarNivelSuperior(memoria)
 
 	processador = Processador()
 	processador.adicionarMemoria(cacheL1)
 
-	programa = Programa('teste.asm')
+	programa = Programa(arquivo)
 
 	processador.adicionarPrograma(programa)
 	processador.executar()
@@ -377,8 +378,8 @@ def main():
 	processador.imprimirMemoria()
 
 	cacheL1.imprimirCache()
-	print('Configuração da Arquitetura\nTamanho da Cache = %d (posições)\nGrau de Associatividade = %d\nPalavras por bloco = %d\n' %
-		(TAMANHO_CACHE_L1, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO))
+	print('Configuração da Arquitetura\nTamanho da Cache = %d (posições)\nGrau de Associatividade = %d\nPalavras por bloco = %d\nModo de substituição (0 Aleatório, 1 LRU, 2 FIFO, 3 LFU): %d\n' %
+		(TAMANHO_CACHE, GRAU_ASSOCIATIVIDADE, PALAVRAS_POR_BLOCO, MODO_SUBSTITUICAO))
 	global hitRate, missRate
 	total = (hitRate + missRate)
 	print('Resultados\nHit Rate: (%d) %.1f%% \tMiss Rate: (%d) %.1f%%' % (hitRate, hitRate/total*100, missRate, missRate/total*100))
