@@ -15,12 +15,12 @@ class Programa():
 
 	def interpretador(self, file_name):
 		file_input = open(file_name).read()
-		code = re.sub("(#.*?\n)","\n", file_input)
-		code = re.sub("\s{2,}","\n", code)
-		code = re.sub("\t"," ", code)
+		code = re.sub("(#.*?\n)","\n", file_input) # Retirar comentarios
+		code = re.sub("\s{2,}","\n", code) # Retirar espacos extras
+		code = re.sub("\t"," ", code) # Retirar a tabulacao
 		for line in code.splitlines():
 			if(not re.search(":",line) and not re.search(".data",line) and not re.search(".text",line) and line):
-				self.instrucoes += [Instrucao(line)]
+				self.instrucoes += [line]
 			elif(re.search("(\w+):.*?\.", line)):
 				""" ship(nome variaverl): .word(tipo) 320 90 1 4(valores) """
 				split = line.split()
@@ -53,7 +53,7 @@ class Programa():
 
 	def _compilarPrograma(self):
 		for instrucao in self.instrucoes:
-			string_linha = instrucao.line
+			string_linha = instrucao
 			string_linha = string_linha.replace(',',' ')
 			linha = string_linha.split()
 			self.programa.append(linha)
@@ -61,39 +61,3 @@ class Programa():
 		self.programa.extend(self.memoria_dados)
 		for dado in self.dados:
 			self.dados[dado] += self.fim_programa
-
-class Instrucao():
-	aritmetica = ["add", "sub", "mult", "div", "mfhi"]
-	incondicional_salto = ["jal", "j", "jr", "baq"]
-	condicional_salto = ["beq", "bne", "slt", "sltu", "slti", "sltiu", "bgt", "bgtz"]
-	memoria = ["li","addi", "lw", "sw", "la", "lhu", "sh", "lb", "lbu", "sb", "ll", "sc", "lui"]
-	logica = ["and", "or", "nor", "andi", "ori" , "sll"]
-
-	def __init__(self, line):
-		self.line = line
-		op = line.split()[0]
-		if(op in Instrucao.aritmetica):
-			self._type = "Type r"
-		elif(op in Instrucao.incondicional_salto):
-			self._type = "Type Unconditional jump"
-		elif(op in Instrucao.condicional_salto):
-			self._type = "Type conditional jump"
-		elif(op in Instrucao.memoria):
-			self._type = "Type Memory"
-		elif(op in Instrucao.logica):
-			self._type = "Type Logical"
-		elif( op == "blt"):
-			self._type = "Pseudo Instrucao"
-		else:
-			self._type = "Syscam - Desconsidere"
-
-	def __repr__(self):
-		return str((self._type, self.line))+"\n"
-
-#a = Programa(file_name)
-
-#print(a.programa)
-#print(a.memoria_dados)
-#print(a.dados)
-
-
